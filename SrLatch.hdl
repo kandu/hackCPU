@@ -1,0 +1,1 @@
+IN s,r; OUT q,nq; Nor(a=r, b=nq_i, out=q, out=q_i); Nor(a=q_i, b=s, out=nq, out=nq_i);

@@ -1,0 +1,1 @@
+DMux(in=clock, sel=in, a=reset, b=set); SrLatch(r=reset, s=set, q=out);

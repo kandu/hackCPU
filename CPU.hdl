@@ -1,0 +1,134 @@
+CHIP CPU {
+    IN  inM[16],         // M value input  (M = contents of RAM[A])
+        instruction[16], // Instruction for execution
+        reset;           // Signals whether to re-start the current
+                         // program (reset==1) or continue executing
+                         // the current program (reset==0).
+
+    OUT outM[16],        // M value output
+        writeM,          // Write to M? 
+        addressM[15],    // Address in data memory (of M)
+        pc[15];          // address of next instruction
+
+    PARTS:
+    ARegister(in=regA-f, load=ifSetA, out=regA, out[0..14]=addressM);
+    DRegister(in=calc-res, load=ifSetD, out=regD);
+
+    Register(in=ip-f, load=true, out=ip, out[0..14]=pc);
+
+    ALU(x=aOrM-f, y=regD-f,
+        zx=false, nx=cond6,
+        zy=false, ny=cond5,
+        f=cond16-not, no=false,
+        out=alu-out, zr=alu-zr, ng=alu-ng
+    );
+
+    // dest
+    IfSetA(in=instruction, out=ifSetA);
+    And(a=instruction[15], b=instruction[3], out=writeM);
+    And(a=instruction[15], b=instruction[4], out=ifSetD);
+
+    Mux16(a=instruction, b=calc-res, sel=instruction[15], out=regA-f);
+
+    // A / M
+    Mux16(a=regA, b=inM, sel=instruction[12], out=aOrM);
+
+    Not(in=instruction[11], out=notC1);
+    Not(in=instruction[10], out=notC2);
+    Not(in=instruction[9],  out=notC3);
+    Not(in=instruction[8],  out=notC4);
+    Not(in=instruction[7],  out=notC5);
+    Not(in=instruction[6],  out=notC6);
+
+    // figure 4.3
+    // cond 0: 0
+    And8Way(in[0]=notC6, in[1]=instruction[7], in[2]=notC4, in[3]=instruction[9], in[4]=notC2, in[5]=instruction[11], in[6]=true, in[7]=true, out=cond0);
+    Not(in=cond0,out=cond0-not);
+    // cond 1: 1
+    And8Way(in[0..5]=instruction[6..11], in[6]=true, in[7]=true, out=cond1);
+    Not(in=cond1,out=cond1-not);
+    // cond 2: -1
+    And8Way(in[0..2]=instruction[9..11], in[3]=notC4, in[4]=instruction[7], in[5]=notC6, in[6]=true, in[7]=true, out=cond2);
+    Not(in=cond2,out=cond2-not);
+    // cond 3: D
+    And8Way(in[0]=notC6, in[1]=notC5, in[2]=instruction[8], in[3]=instruction[9], in[4]=notC2, in[5]=notC1, in[6]=true, in[7]=true, out=cond3);
+    Not(in=cond3,out=cond3-not);
+    // cond 4: aOrM
+    And8Way(in[0]=notC6,in[1]=notC5,in[2]=notC4,in[3]=notC3, in[4..5]=instruction[10..11], in[6]=true, in[7]=true, out=cond4);
+    Not(in=cond4,out=cond4-not);
+    // cond 5: !D
+    And8Way(in[0]=instruction[6],in[1]=notC5,in[2..3]=instruction[8..9], in[4]=notC2, in[5]=notC1, in[6]=true, in[7]=true, out=cond5);
+    Not(in=cond5,out=cond5-not);
+    // cond 6: ! aOrM
+    And8Way(in[0]=instruction[6],in[1]=notC5,in[2]=notC4, in[3]=notC3, in[4..5]=instruction[10..11], in[6]=true, in[7]=true, out=cond6);
+    Not(in=cond6,out=cond6-not);
+    // cond 7: - D
+    And8Way(in[0..3]=instruction[6..9],in[4]=notC2,in[5]=notC1, in[6]=true, in[7]=true, out=cond7);
+    Not(in=cond7,out=cond7-not);
+    // cond 8: - aOrM
+    And8Way(in[0..1]=instruction[6..7],in[2]=notC4,in[3]=notC3, in[4..5]=instruction[10..11], in[6]=true, in[7]=true, out=cond8);
+    Not(in=cond8,out=cond8-not);
+    // cond 9: D + 1
+    And8Way(in[0..4]=instruction[6..10],in[5]=notC1, in[6]=true, in[7]=true, out=cond9);
+    Not(in=cond9,out=cond9-not);
+    // cond 10: aOrM + 1
+    And8Way(in[0..2]=instruction[6..8],in[3]=notC3, in[4..5]=instruction[10..11], in[6]=true, in[7]=true, out=cond10);
+    Not(in=cond10,out=cond10-not);
+    // cond 11: D - 1
+    And8Way(in[0]=notC6, in[1..3]=instruction[7..9],in[4]=notC2, in[5]=notC1, in[6]=true, in[7]=true, out=cond11);
+    Not(in=cond11,out=cond11-not);
+    // cond 12: aOrM - 1
+    And8Way(in[0]=notC6, in[1]=instruction[7],in[2]=notC4, in[3]=notC3, in[4..5]=instruction[10..11], in[6]=true, in[7]=true, out=cond12);
+    Not(in=cond12,out=cond12-not);
+    // cond 13: D + aOrM
+    And8Way(in[0]=notC6, in[1]=instruction[7],in[2]=notC4, in[3]=notC3, in[4]=notC2, in[5]=notC1, in[6]=true, in[7]=true, out=cond13);
+    Not(in=cond13,out=cond13-not);
+    // cond 14: D - aOrM
+    And8Way(in[0..1]=instruction[6..7], in[2]=notC4, in[3]=notC3, in[4]=instruction[10], in[5]=notC1, in[6]=true, in[7]=true, out=cond14);
+    Not(in=cond14,out=cond14-not);
+    // cond 15: aOrM - D
+    And8Way(in[0..2]=instruction[6..8], in[3]=notC3, in[4]=notC2, in[5]=notC1, in[6]=true, in[7]=true, out=cond15);
+    Not(in=cond15,out=cond15-not);
+    // cond 16: D & aOrM
+    And8Way(in[0]=notC6, in[1]=notC5, in[2]=notC4, in[3]=notC3, in[4]=notC2, in[5]=notC1, in[6]=true, in[7]=true, out=cond16);
+    Not(in=cond16,out=cond16-not);
+    // cond 17: D | aOrM
+    And8Way(in[0]=instruction[6], in[1]=notC5, in[2]=instruction[8], in[3]=notC3, in[4]=instruction[10], in[5]=notC1, in[6]=true, in[7]=true, out=cond17);
+    Not(in=cond17,out=cond17-not);
+
+    // in these conditions, we set zx to 1
+    Or16Way(in[0]=cond3, in[1]=cond5, in[2]=cond7, in[3]=cond9, in[4]=cond11, out=zx-f);
+
+    // in these conditions, we set zy to 1
+    Or16Way(in[0]=cond4, in[1]=cond6, in[2]=cond8, in[3]=cond10, in[4]=cond12, out=zy-f);
+
+    // two input values for the ALU
+        Negative(in=aOrM-1, out=aOrM-neg);
+        Negative(in=regD-1, out=regD-neg);
+
+    // aOrM
+    Or8Way(in[0]=cond0, in[1]=cond1, in[2]=cond2, in[3]=cond3, in[4]=cond5, in[5]=cond7, in[6]=cond9, in[7]=cond11, out=aOrM-ifZero);
+    Mux16(a=aOrM, b=false, sel=aOrM-ifZero, out=aOrM-0);
+    Or(a=cond9, b=cond11, out=aOrM-ifOne);
+    Mux16(a=aOrM-0, b[0]=true, sel=aOrM-ifOne, out=aOrM-1);
+    Or8Way(in[0]=cond8, in[1]=cond11, in[2]=cond14, out=aOrM-neg-set);
+    Mux16(a=aOrM-1, b=aOrM-neg, sel=aOrM-neg-set, out=aOrM-f);
+
+    // regD
+    Or8Way(in[0]=cond0, in[1]=cond4, in[2]=cond6, in[3]=cond8, out=regD-ifZero);
+    Mux16(a=regD, b=false, sel=regD-ifZero, out=regD-0);
+    Or8Way(in[0]=cond1, in[1]=cond2, in[2]=cond10, in[3]=cond12, out=regD-ifOne);
+    Mux16(a=regD-0, b[0]=true, sel=regD-ifOne, out=regD-1);
+    Or8Way(in[0]=cond2, in[1]=cond7, in[2]=cond12, in[3]=cond15, out=regD-neg-set);
+    Mux16(a=regD-1, b=regD-neg, sel=regD-neg-set, out=regD-f);
+
+    // calculation result
+    Or16(a=aOrM, b=regD, out=calc-res0);
+    Mux16(a=alu-out, b=calc-res0, sel=cond17, out=calc-res, out=outM);
+
+    Inc16(in=ip, out=nextIp);
+    IfJump(cond=instruction[0..2], c=instruction[15], zr=alu-zr, ng=alu-ng, out=ifJump);
+    Mux16(a=nextIp, b=regA, sel=ifJump, out=newIp);
+    Mux16(a=newIp, b=false, sel=reset, out=ip-f);
+}
+
